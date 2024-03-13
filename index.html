@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="css/backgraundSideMenu.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+
+    <script src="//cdn.jsdelivr.net/npm/sortablejs@1.8.4/Sortable.min.js"></script>
+    <!-- CDNJS :: Vue.Draggable (https://cdnjs.com/) -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/Vue.Draggable/2.20.0/vuedraggable.umd.min.js"></script>
+
+
+    <!-- <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script> -->
+    <script src="./js/easeljs.js"></script>
+    <script src="./js/eventemitter2.min.js"></script>
+    <script type="text/javascript" src="mjpegcanvas.min.js"></script>
+  
+      <script src="./js/roslib.js"></script>
+      <script src="./js/ros2d.js"></script>
+      <script src="./js/ros-nav2d-js/Nav2D.js"></script>
+      <script src="./js/ros-nav2d-js/navigator/ImageMapClientNav.js"></script>
+      <script src="./js/ros-nav2d-js/navigator/Navigator.js"></script>
+      <script src="./js/ros-nav2d-js/navigator/OccupancyGridClientNav.js"></script>
+      
+</head>
+<body>
+<main id="vueApp">
+   
+<h2>Tabs</h2>
+<p>Click on the buttons inside the tabbed menu:</p>
+<button class="mt-2 btn btn-success" v-if="connected" @click="disconnect">Connected!</button>
+<button class="mt-2 btn btn-primary" v-else @click="connect">Connect!</button>
+<div class="tab">
+  <button class="tablinks" @click="openTab('Mapping')">Mapping</button>
+  <button class="tablinks" @click="openTab('Control')">Control</button>
+  <button class="tablinks" @click="openTab('Tokyo')">Tokyo</button>
+</div>
+
+<div id="Mapping" class="tabcontent">
+    <h3>Mapping</h3>
+    <button id="buttonStartMapping" @click="startMapping">Start Mapping</button>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h2 class="text-center">Joystick</h2>
+                        <hr>
+                        <p>start move robot for make map </p>
+                        <div id="dragstartzone" @mousedown="startDrag" @mousemove="doDrag">
+                        </div>
+                        <div id="dragCircle" :style="dragCircleStyle"></div>
+                    </div>
+                </div>
+            </div>
+           
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="text-center">Camera for see enviroment</h2>
+                        <div id="divCamera"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+            </div>
+           
+            <div class="col-md-8">
+                <div class="card">
+                    <h2 class="text-center">The Map</h2>
+
+                    <div class="col-md-12 text-center my-2">
+                        <div id="map"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="Control" class="tabcontent">
+  <h3>Control</h3>
+  <p>can see robot location and see whar robot camera see.</p> 
+  <button id="buttonConncetRobot" @click="startControl">Connect Robot</button>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h2 class="text-center">Joystick</h2>
+                        <hr>
+                        <p>If You want control robot </p>
+                        <div id="dragstartzone" @mousedown="startDrag" @mousemove="doDrag">
+                        </div>
+                        <div id="dragCircle" :style="dragCircleStyle"></div>
+                    </div>
+                </div>
+            </div>
+           
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="text-center">Camera for see enviroment</h2>
+                        <div id="divCameraCotrol"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+            </div>
+           
+            <div class="col-md-8">
+                <div class="card">
+                    <h2 class="text-center">robot Map and location</h2>
+
+                    <div class="col-md-12 text-center my-2">
+                        <div id="map_nav"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="Tokyo" class="tabcontent">
+  <h3>Tokyo</h3>
+  <p>Tokyo is the capital of Japan.</p>
+
+  <div>
+    
+    <div class="row">
+        <div class="col-3">
+          <h3>Draggable 1</h3>
+          <draggable
+            class="dragArea list-group"
+            :list="list1"
+            :clone="clone"
+            :group="{ name: 'people', pull: pullFunction }"
+            @start="start"
+          >
+            <div class="list-group-item" v-for="element in list1" :key="element.id">
+              {{ element.name }}
+            </div>
+          </draggable>
+        </div>
+    
+        <div class="col-3">
+          <h3>Draggable 2</h3>
+          <draggable class="dragArea list-group" :list="list2" group="people">
+            <div class="list-group-item" v-for="element in list2" :key="element.id">
+              {{ element.name }}
+            </div>
+          </draggable>
+        </div>
+    
+        <rawDisplayer class="col-3" :value="list1" title="List 1" />
+    
+        <rawDisplayer class="col-3" :value="list2" title="List 2" />
+      </div>
+    
+  </div>
+</div>
+
+</main>
+
+    
+    <!-- <script src="scripts/scriptSideMenu.js"></script> -->
+
+    <script>
+      function openTab(tabName) {
+        var i;
+        var x = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < x.length; i++) {
+          x[i].style.display = "none";
+        }
+        document.getElementById(tabName).style.display = "block";
+      }
+    </script>
+    <script type="text/javascript" src="main.js">
+    </script>
+</body>
+</html>

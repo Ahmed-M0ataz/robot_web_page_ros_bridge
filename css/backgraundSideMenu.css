@@ -1,0 +1,124 @@
+body {font-family: Arial;}
+
+/* Style the tab */
+.tab {
+  overflow: hidden;
+  border: 1px solid #ccc;
+  background-color: #04AA6D;
+}
+
+/* Style the buttons inside the tab */
+.tab button {
+  background-color: #04AA6D;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  transition: 0.3s;
+  font-size: 17px;
+}
+
+/* Change background color of buttons on hover */
+.tab button:hover {
+  background-color: #ddd;
+}
+
+/* Create an active/current tablink class */
+.tab button.active {
+  background-color: #ccc;
+}
+
+/* Style the tab content */
+.tabcontent {
+	display: none;
+	padding: 6px 12px;
+	border: 1px solid #ccc;
+	border-top: none;
+  }
+
+#Mapping {
+	display: block;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 20px;
+}
+
+td, th {
+	border: 1px solid #05bd7a;
+	padding: 8px;
+	text-align: center;
+}
+
+#joystickCanvas, #cameraCanvas, #mappingCanvas {
+	display: none;
+	margin: 0 auto;
+	margin-top: 20px;
+	border: 1px solid #05bd7a;
+	border-radius: 5px;
+}
+
+#buttonStartMapping {
+	display: block;
+	width: 100%;
+	border: none;
+	background-color: #04AA6D;
+	padding: 14px 28px;
+	font-size: 16px;
+	cursor: pointer;
+	text-align: center;
+	float: right; /* Align the block element to the right */
+}
+#buttonStartMapping:hover {
+	background-color: #ddd; /* Change background color on hover */
+  }
+  
+  /* Create an active/current tablink class */
+#buttonStartMapping:active {
+	background-color: #ccc;
+  }
+  
+  #dragstartzone {
+	position: relative;
+	display: inline-block;
+	width: 200px;
+	height: 200px;
+	border: 1px solid #333;
+	border-radius: 50%;
+	z-index: 10;
+	-moz-user-select: -moz-none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+#dragCircle {
+	position: absolute;
+	z-index: 9;
+	border: 1px solid transparent;
+	border-radius: 50%;
+	background-color: rgba(0, 0, 0, 30%);
+	-moz-user-select: -moz-none;
+	-webkit-user-select: none;
+	user-select: none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+}
+
+#dragCircle:hover {
+	background-color: lightcoral;
+}
+.map_nav {
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    width: 100%; /* Take full width of the container */
+    max-width: 500px; /* Limit maximum width */
+    height: 800px; /* Adjust height as needed */
+    margin: 0 auto;
+    transform: rotate(-90deg); /* Adjust the rotation angle as needed */
+
+}

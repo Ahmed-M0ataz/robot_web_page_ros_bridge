@@ -44,8 +44,22 @@
             <button @click="startMapping" class="control-btn">
                 <i class="fas fa-play"></i> Start Mapping
             </button>
+            <div class="nav-controls">
+                <button @click="toggleSetNavGoal" :class="['control-btn', setNavGoalActive ? 'active' : '']">
+                    <i class="fas fa-location-crosshairs"></i> Set Navigation Goal
+                </button>
+            </div>
+            
             <div class="map-container">
                 <div id="map" class="map-canvas"></div>
+                <div v-if="showNavConfirm" class="nav-confirm-controls">
+                    <button @click="confirmNavGoal" class="control-btn success">
+                        <i class="fas fa-check"></i> Send Goal
+                    </button>
+                    <button @click="cancelNavGoal" class="control-btn danger">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
             <div class="map-controls">
                 <button @click="resetView" class="control-btn secondary">

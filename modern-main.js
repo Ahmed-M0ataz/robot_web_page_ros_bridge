@@ -47,7 +47,10 @@ const app = new Vue({
             height: 600,
             gridResolution: 0.05,
             gridSize: 20
-        }
+        },
+        setNavGoalActive: false,
+        showNavConfirm: false,
+        currentNavGoal: null
     },
     
     methods: {
@@ -309,6 +312,97 @@ const app = new Vue({
                 this.map3dViewer.camera.lookAt(0, 0, 0);
                 this.map3dViewer.controls.reset();
             }
+        },
+        toggleSetNavGoal() {
+            this.setNavGoalActive = !this.setNavGoalActive;
+            if (this.map3dViewer) {
+                if (this.setNavGoalActive) {
+                    this.map3dViewer.enableNavGoalMode();
+                    this.setupNavGoalListeners();
+                } else {
+                    this.map3dViewer.disableNavGoalMode();
+                    this.removeNavGoalListeners();
+                }
+            }
+        },
+    
+        setupNavGoalListeners() {
+            const mapElement = document.getElementById('map');
+            mapElement.addEventListener('click', this.handleMapClick);
+            mapElement.addEventListener('mousemove', this.handleMapMouseMove);
+        },
+    
+        removeNavGoalListeners() {
+            const mapElement = document.getElementById('map');
+            mapElement.removeEventListener('click', this.handleMapClick);
+            mapElement.removeEventListener('mousemove', this.handleMapMouseMove);
+            this.map3dViewer.hideVirtualGoal();
+            this.showNavConfirm = false;
+        },
+    
+        handleMapClick(event) {
+            if (!this.setNavGoalActive || !this.map3dViewer) return;
+    
+            const intersectPoint = this.map3dViewer.handleMapClick(event);
+            if (intersectPoint) {
+                // Store initial position
+                this.currentNavGoal = {
+                    position: {
+                        x: intersectPoint.x,
+                        y: intersectPoint.z
+                    },
+                    orientation: new THREE.Quaternion()
+                };
+                
+                // Show confirm buttons after position is selected
+                this.showNavConfirm = true;
+            }
+        },
+    
+        handleMapMouseMove(event) {
+            if (!this.setNavGoalActive || !this.map3dViewer || !this.showNavConfirm) return;
+    
+            const result = this.map3dViewer.handleMouseMove(event);
+            if (result) {
+                this.currentNavGoal.orientation = result.orientation;
+            }
+        },
+    
+        setupNavGoalListeners() {
+            const mapElement = document.getElementById('map');
+            mapElement.addEventListener('click', this.handleMapClick);
+            mapElement.addEventListener('mousemove', this.handleMapMouseMove);
+        },
+    
+        confirmNavGoal() {
+            if (!this.currentNavGoal || !this.map3dViewer) return;
+    
+            // Convert the current goal to Three.js position
+            const position = new THREE.Vector3(
+                this.currentNavGoal.position.x,
+                0,
+                this.currentNavGoal.position.y
+            );
+    
+            // Send the goal to move_base
+            this.map3dViewer.confirmNavGoal(position, this.currentNavGoal.orientation);
+            
+            // Show success notification
+            this.showNotification('Navigation goal sent to move_base', 'success');
+            
+            // Reset the UI
+            this.cancelNavGoal();
+        },
+    
+        cancelNavGoal() {
+            this.currentNavGoal = null;
+            this.showNavConfirm = false;
+            this.setNavGoalActive = false;
+            if (this.map3dViewer) {
+                this.map3dViewer.hideVirtualGoal();
+                this.map3dViewer.disableNavGoalMode();
+            }
+            this.removeNavGoalListeners();
         }
     },
 

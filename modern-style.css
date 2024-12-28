@@ -248,3 +248,38 @@ body {
         flex-wrap: wrap;
     }
 }
+
+.nav-controls {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 10;
+}
+
+.nav-confirm-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.control-btn.active {
+    background: var(--success);
+    color: white;
+}
+
+.control-btn.success {
+    background: var(--success);
+}
+
+.control-btn.danger {
+    background: var(--error);
+}
+
+.virtual-goal {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+}

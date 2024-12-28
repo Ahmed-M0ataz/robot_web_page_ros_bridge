@@ -1,4 +1,3 @@
-// map3d.js
 class Map3DViewer {
     constructor(containerId, options = {}) {
         this.containerId = containerId;
@@ -22,7 +21,11 @@ class Map3DViewer {
         this.ros = null;
         this.mapMetadata = null;
         this.mapOrigin = null;
-        
+        this.virtualGoal = null;
+        this.navGoalMode = false;
+        this.selectedPosition = null;  // Store clicked position
+        this.navGoalMode = false;
+        this.isPositionSelected = false;  
         this.init();
     }
 
@@ -55,6 +58,9 @@ class Map3DViewer {
         // Create robot
         this.createRobot();
 
+        // Create virtual goal marker
+        this.createVirtualGoal();
+
         // Start animation
         this.animate();
     }
@@ -81,14 +87,14 @@ class Map3DViewer {
             roughness: 0.8,
             metalness: 0.2
         });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
+        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        this.ground.rotation.x = -Math.PI / 2;
+        this.ground.receiveShadow = true;
+        this.scene.add(this.ground);
 
         // Grid helper
-        const gridHelper = new THREE.GridHelper(50, 50, 0x666666, 0x444444);
-        this.scene.add(gridHelper);
+        this.gridHelper = new THREE.GridHelper(50, 50, 0x666666, 0x444444);
+        this.scene.add(this.gridHelper);
     }
 
     createRobot() {
@@ -133,6 +139,49 @@ class Map3DViewer {
         this.scene.add(this.robot);
     }
 
+    createVirtualGoal() {
+        const goalGroup = new THREE.Group();
+        
+        // Create a longer, more visible arrow
+        const arrowLength = 1.0;
+        const arrowWidth = 0.3;
+        const arrowColor = 0x00ff00;
+        
+        // Arrow shaft
+        const shaftGeometry = new THREE.BoxGeometry(arrowLength, 0.1, arrowWidth);
+        const material = new THREE.MeshPhongMaterial({
+            color: arrowColor,
+            transparent: true,
+            opacity: 0.8
+        });
+        const shaft = new THREE.Mesh(shaftGeometry, material);
+        shaft.position.x = arrowLength / 2;
+        goalGroup.add(shaft);
+        
+        // Arrow head
+        const headGeometry = new THREE.ConeGeometry(arrowWidth, arrowLength * 0.4, 8);
+        const head = new THREE.Mesh(headGeometry, material);
+        head.rotation.z = -Math.PI / 2;
+        head.position.x = arrowLength;
+        goalGroup.add(head);
+        
+        // Add a small base circle
+        const baseGeometry = new THREE.CircleGeometry(0.2, 32);
+        const baseMaterial = new THREE.MeshPhongMaterial({
+            color: arrowColor,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.rotation.x = -Math.PI / 2;
+        goalGroup.add(base);
+        
+        goalGroup.visible = false;
+        this.scene.add(goalGroup);
+        this.virtualGoal = goalGroup;
+    }
+    
     updateMap(occupancyGrid) {
         // Clear previous map
         if (this.gridMap) {
@@ -248,6 +297,142 @@ class Map3DViewer {
             }
         });
     }
+
+    handleMapClick(event) {
+        if (!this.navGoalMode) return null;
+
+        // Get mouse coordinates
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Create raycaster
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
+
+        // Create a plane at y=0 to intersect with
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+
+        if (intersectPoint) {
+            this.selectedPosition = intersectPoint;
+            this.isPositionSelected = true;
+            return intersectPoint;
+        }
+        return null;
+    }
+    handleMouseMove(event) {
+        if (!this.isPositionSelected || !this.selectedPosition) return;
+
+        // Calculate orientation based on mouse position relative to selected point
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // Convert selected position to screen coordinates
+        const selectedPoint = this.selectedPosition.clone();
+        selectedPoint.project(this.camera);
+        const screenX = (selectedPoint.x + 1) * rect.width / 2 + rect.left;
+        const screenY = (-selectedPoint.y + 1) * rect.height / 2 + rect.top;
+
+        // Calculate angle
+        const dx = mouseX - screenX;
+        const dy = mouseY - screenY;
+        const angle = Math.atan2(dy, dx);
+
+        // Create quaternion for orientation
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle + Math.PI / 2);
+
+        // Update virtual goal visualization
+        this.updateVirtualGoal(this.selectedPosition, quaternion);
+
+        return { position: this.selectedPosition, orientation: quaternion };
+    }
+
+    updateVirtualGoal(position, orientation) {
+        if (!this.virtualGoal) {
+            this.createVirtualGoal();
+        }
+
+        this.virtualGoal.position.copy(position);
+        this.virtualGoal.setRotationFromQuaternion(orientation);
+        this.virtualGoal.visible = true;
+    }
+
+    enableNavGoalMode() {
+        this.navGoalMode = true;
+        this.isPositionSelected = false;
+        this.selectedPosition = null;
+        this.renderer.domElement.style.cursor = 'crosshair';
+    }
+
+    disableNavGoalMode() {
+        this.navGoalMode = false;
+        this.isPositionSelected = false;
+        this.selectedPosition = null;
+        this.renderer.domElement.style.cursor = 'default';
+        this.hideVirtualGoal();
+    }
+
+    confirmNavGoal(position, quaternion) {
+        if (!this.ros) return;
+        
+        // Create the goal topic
+        const goalTopic = new ROSLIB.Topic({
+            ros: this.ros,
+            name: '/move_base/goal',
+            messageType: 'move_base_msgs/MoveBaseActionGoal'
+        });
+
+        // Create the goal message
+        const goalMessage = new ROSLIB.Message({
+            header: {
+                frame_id: 'map',
+                stamp: {
+                    secs: Math.floor(Date.now() / 1000),
+                    nsecs: (Date.now() % 1000) * 1000000
+                }
+            },
+            goal_id: {
+                stamp: {
+                    secs: Math.floor(Date.now() / 1000),
+                    nsecs: (Date.now() % 1000) * 1000000
+                },
+                id: 'goal_' + Date.now()
+            },
+            goal: {
+                target_pose: {
+                    header: {
+                        frame_id: 'map',
+                        stamp: {
+                            secs: Math.floor(Date.now() / 1000),
+                            nsecs: (Date.now() % 1000) * 1000000
+                        }
+                    },
+                    pose: {
+                        position: {
+                            x: position.x,
+                            y: -position.z,  // Convert from Three.js Z to ROS Y
+                            z: 0.0
+                        },
+                        orientation: {
+                            x: quaternion.x,
+                            y: quaternion.y,
+                            z: quaternion.z,
+                            w: quaternion.w
+                        }
+                    }
+                }
+            }
+        });
+
+        // Publish the goal
+        goalTopic.publish(goalMessage);
+        console.log('Navigation goal published:', goalMessage);
+    }
+
     animate() {
         requestAnimationFrame(() => this.animate());
         this.controls.update();

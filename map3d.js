@@ -23,9 +23,8 @@ class Map3DViewer {
         this.mapOrigin = null;
         this.virtualGoal = null;
         this.navGoalMode = false;
-        this.selectedPosition = null;  // Store clicked position
-        this.navGoalMode = false;
-        this.isPositionSelected = false;  
+        this.selectedPosition = null;
+        this.isPositionSelected = false;
         this.init();
     }
 
@@ -66,11 +65,9 @@ class Map3DViewer {
     }
 
     addLights() {
-        // Ambient light
         const ambientLight = new THREE.AmbientLight(0x666666);
         this.scene.add(ambientLight);
 
-        // Directional light
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
         dirLight.position.set(10, 10, 10);
         dirLight.castShadow = true;
@@ -80,7 +77,6 @@ class Map3DViewer {
     }
 
     addGrid() {
-        // Ground plane
         const groundGeometry = new THREE.PlaneGeometry(50, 50);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x333333,
@@ -92,21 +88,17 @@ class Map3DViewer {
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
 
-        // Grid helper
         this.gridHelper = new THREE.GridHelper(50, 50, 0x666666, 0x444444);
         this.scene.add(this.gridHelper);
     }
 
     createRobot() {
-        // Remove existing robot if any
         if (this.robot) {
             this.scene.remove(this.robot);
         }
 
-        // Create robot group
         this.robot = new THREE.Group();
 
-        // Create robot body (cylinder)
         const bodyGeometry = new THREE.CylinderGeometry(
             this.options.robotRadius,
             this.options.robotRadius,
@@ -122,7 +114,6 @@ class Map3DViewer {
         body.castShadow = true;
         this.robot.add(body);
 
-        // Create direction indicator (arrow)
         const arrowGeometry = new THREE.ConeGeometry(
             this.options.robotRadius / 2,
             this.options.robotHeight / 2,
@@ -165,7 +156,7 @@ class Map3DViewer {
         head.position.x = arrowLength;
         goalGroup.add(head);
         
-        // Add a small base circle
+        // Base circle
         const baseGeometry = new THREE.CircleGeometry(0.2, 32);
         const baseMaterial = new THREE.MeshPhongMaterial({
             color: arrowColor,
@@ -181,17 +172,14 @@ class Map3DViewer {
         this.scene.add(goalGroup);
         this.virtualGoal = goalGroup;
     }
-    
+
     updateMap(occupancyGrid) {
-        // Clear previous map
         if (this.gridMap) {
             this.scene.remove(this.gridMap);
         }
 
-        // Create new group for map
         this.gridMap = new THREE.Group();
 
-        // Store map metadata for pose transformations
         this.mapMetadata = {
             resolution: occupancyGrid.info.resolution,
             width: occupancyGrid.info.width,
@@ -199,7 +187,6 @@ class Map3DViewer {
             origin: occupancyGrid.info.origin
         };
 
-        // Convert occupancy grid to 3D objects
         const width = occupancyGrid.info.width;
         const height = occupancyGrid.info.height;
         const data = occupancyGrid.data;
@@ -219,7 +206,7 @@ class Map3DViewer {
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const value = data[y * width + x];
-                if (value > 50) { // Occupied cell
+                if (value > 50) {
                     const wall = new THREE.Mesh(wallGeometry, wallMaterial);
                     wall.position.set(
                         (x * resolution) + occupancyGrid.info.origin.position.x,
@@ -235,7 +222,6 @@ class Map3DViewer {
 
         this.scene.add(this.gridMap);
 
-        // Update grid size based on map size
         const mapSize = Math.max(width * resolution, height * resolution);
         if (this.gridHelper) {
             this.scene.remove(this.gridHelper);
@@ -243,7 +229,6 @@ class Map3DViewer {
         this.gridHelper = new THREE.GridHelper(mapSize, Math.floor(mapSize/resolution), 0x666666, 0x444444);
         this.scene.add(this.gridHelper);
 
-        // Update ground plane
         if (this.ground) {
             this.scene.remove(this.ground);
         }
@@ -275,12 +260,10 @@ class Map3DViewer {
         amclPose.subscribe((message) => {
             const pose = message.pose.pose;
             if (this.robot) {
-                // Update position directly from AMCL pose
                 this.robot.position.x = pose.position.x;
-                this.robot.position.z = -pose.position.y;  // Negate Y for proper orientation
+                this.robot.position.z = -pose.position.y;
                 this.robot.position.y = this.options.robotHeight / 2;
 
-                // Update orientation
                 const quaternion = new THREE.Quaternion(
                     pose.orientation.x,
                     pose.orientation.y,
@@ -288,7 +271,6 @@ class Map3DViewer {
                     pose.orientation.w
                 );
                 
-                // Apply correction to match RViz orientation
                 const correctionQuaternion = new THREE.Quaternion();
                 correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
                 quaternion.multiply(correctionQuaternion);
@@ -301,16 +283,13 @@ class Map3DViewer {
     handleMapClick(event) {
         if (!this.navGoalMode) return null;
 
-        // Get mouse coordinates
         const rect = this.renderer.domElement.getBoundingClientRect();
         const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Create raycaster
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
 
-        // Create a plane at y=0 to intersect with
         const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         const intersectPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(plane, intersectPoint);
@@ -322,30 +301,26 @@ class Map3DViewer {
         }
         return null;
     }
+
     handleMouseMove(event) {
         if (!this.isPositionSelected || !this.selectedPosition) return;
 
-        // Calculate orientation based on mouse position relative to selected point
         const rect = this.renderer.domElement.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
 
-        // Convert selected position to screen coordinates
         const selectedPoint = this.selectedPosition.clone();
         selectedPoint.project(this.camera);
         const screenX = (selectedPoint.x + 1) * rect.width / 2 + rect.left;
         const screenY = (-selectedPoint.y + 1) * rect.height / 2 + rect.top;
 
-        // Calculate angle
         const dx = mouseX - screenX;
         const dy = mouseY - screenY;
         const angle = Math.atan2(dy, dx);
 
-        // Create quaternion for orientation
         const quaternion = new THREE.Quaternion();
-        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle + Math.PI / 2);
+        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
 
-        // Update virtual goal visualization
         this.updateVirtualGoal(this.selectedPosition, quaternion);
 
         return { position: this.selectedPosition, orientation: quaternion };
@@ -359,6 +334,12 @@ class Map3DViewer {
         this.virtualGoal.position.copy(position);
         this.virtualGoal.setRotationFromQuaternion(orientation);
         this.virtualGoal.visible = true;
+    }
+
+    hideVirtualGoal() {
+        if (this.virtualGoal) {
+            this.virtualGoal.visible = false;
+        }
     }
 
     enableNavGoalMode() {
@@ -378,59 +359,77 @@ class Map3DViewer {
 
     confirmNavGoal(position, quaternion) {
         if (!this.ros) return;
-        
-        // Create the goal topic
-        const goalTopic = new ROSLIB.Topic({
+
+        // Create an ActionClient for move_base
+        const actionClient = new ROSLIB.ActionClient({
             ros: this.ros,
-            name: '/move_base/goal',
-            messageType: 'move_base_msgs/MoveBaseActionGoal'
+            actionName: 'move_base_msgs/MoveBaseAction',
+            serverName: '/move_base'
         });
 
-        // Create the goal message
-        const goalMessage = new ROSLIB.Message({
-            header: {
-                frame_id: 'map',
-                stamp: {
-                    secs: Math.floor(Date.now() / 1000),
-                    nsecs: (Date.now() % 1000) * 1000000
-                }
-            },
-            goal_id: {
-                stamp: {
-                    secs: Math.floor(Date.now() / 1000),
-                    nsecs: (Date.now() % 1000) * 1000000
+        // Create the goal message directly
+        const goalMessage = {
+            target_pose: {
+                header: {
+                    frame_id: 'map',
+                    stamp: {
+                        secs: Math.floor(Date.now() / 1000),
+                        nsecs: (Date.now() % 1000) * 1000000
+                    }
                 },
-                id: 'goal_' + Date.now()
-            },
-            goal: {
-                target_pose: {
-                    header: {
-                        frame_id: 'map',
-                        stamp: {
-                            secs: Math.floor(Date.now() / 1000),
-                            nsecs: (Date.now() % 1000) * 1000000
-                        }
+                pose: {
+                    position: {
+                        x: position.x,
+                        y: -position.z,  // Convert from Three.js Z to ROS Y
+                        z: 0.0
                     },
-                    pose: {
-                        position: {
-                            x: position.x,
-                            y: -position.z,  // Convert from Three.js Z to ROS Y
-                            z: 0.0
-                        },
-                        orientation: {
-                            x: quaternion.x,
-                            y: quaternion.y,
-                            z: quaternion.z,
-                            w: quaternion.w
-                        }
+                    orientation: {
+                        x: quaternion.x,
+                        y: quaternion.y,
+                        z: quaternion.z,
+                        w: quaternion.w
                     }
                 }
             }
+        };
+
+        // Log the goal for verification
+        console.log('Sending navigation goal:', goalMessage);
+
+        // Create the goal with the message
+        const goal = new ROSLIB.Goal({
+            actionClient: actionClient,
+            goalMessage: goalMessage
         });
 
-        // Publish the goal
-        goalTopic.publish(goalMessage);
-        console.log('Navigation goal published:', goalMessage);
+        // Add goal callbacks
+        goal.on('result', function(result) {
+            console.log('Navigation goal result received:', result);
+            this.hideVirtualGoal();
+        }.bind(this));
+
+        goal.on('feedback', function(feedback) {
+            console.log('Navigation goal feedback:', feedback);
+        });
+
+        goal.on('status', function(status) {
+            console.log('Navigation goal status:', status);
+        });
+
+        // Store the current goal
+        this.currentGoal = goal;
+
+        // Send the goal
+        goal.send();
+    }
+
+    cancelCurrentGoal() {
+        if (this.currentGoal) {
+            this.currentGoal.cancel();
+            this.currentGoal = null;
+            this.hideVirtualGoal();
+            console.log('Current navigation goal cancelled');
+        }
     }
 
     animate() {

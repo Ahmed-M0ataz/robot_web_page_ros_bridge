@@ -1,4 +1,3 @@
-// modern-main.js
 const app = new Vue({
     el: '#app',
     data: {
@@ -276,6 +275,10 @@ const app = new Vue({
         },
 
         cleanupMapAndCamera() {
+            if (this.map3dViewer && this.map3dViewer.currentGoal) {
+                this.map3dViewer.cancelCurrentGoal();
+            }
+            
             if (this.mapViewer) {
                 document.getElementById('map').innerHTML = '';
                 this.mapViewer = null;
@@ -313,6 +316,7 @@ const app = new Vue({
                 this.map3dViewer.controls.reset();
             }
         },
+
         toggleSetNavGoal() {
             this.setNavGoalActive = !this.setNavGoalActive;
             if (this.map3dViewer) {
@@ -336,7 +340,9 @@ const app = new Vue({
             const mapElement = document.getElementById('map');
             mapElement.removeEventListener('click', this.handleMapClick);
             mapElement.removeEventListener('mousemove', this.handleMapMouseMove);
-            this.map3dViewer.hideVirtualGoal();
+            if (this.map3dViewer) {
+                this.map3dViewer.hideVirtualGoal();
+            }
             this.showNavConfirm = false;
         },
     
@@ -368,12 +374,6 @@ const app = new Vue({
             }
         },
     
-        setupNavGoalListeners() {
-            const mapElement = document.getElementById('map');
-            mapElement.addEventListener('click', this.handleMapClick);
-            mapElement.addEventListener('mousemove', this.handleMapMouseMove);
-        },
-    
         confirmNavGoal() {
             if (!this.currentNavGoal || !this.map3dViewer) return;
     
@@ -384,7 +384,7 @@ const app = new Vue({
                 this.currentNavGoal.position.y
             );
     
-            // Send the goal to move_base
+            // Send the goal via actionlib
             this.map3dViewer.confirmNavGoal(position, this.currentNavGoal.orientation);
             
             // Show success notification
@@ -395,6 +395,9 @@ const app = new Vue({
         },
     
         cancelNavGoal() {
+            if (this.map3dViewer && this.map3dViewer.currentGoal) {
+                this.map3dViewer.cancelCurrentGoal();
+            }
             this.currentNavGoal = null;
             this.showNavConfirm = false;
             this.setNavGoalActive = false;
@@ -403,6 +406,7 @@ const app = new Vue({
                 this.map3dViewer.disableNavGoalMode();
             }
             this.removeNavGoalListeners();
+            this.showNotification('Navigation goal cancelled', 'info');
         }
     },
 
@@ -416,6 +420,11 @@ const app = new Vue({
     },
 
     beforeDestroy() {
+        // Clean up any active goals before destroying
+        if (this.map3dViewer && this.map3dViewer.currentGoal) {
+            this.map3dViewer.cancelCurrentGoal();
+        }
+        
         window.removeEventListener('mouseup', this.stopDrag);
         window.removeEventListener('mouseleave', this.stopDrag);
         this.disconnect();

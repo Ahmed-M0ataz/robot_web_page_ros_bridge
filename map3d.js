@@ -93,12 +93,9 @@ class Map3DViewer {
     }
 
     createRobot() {
-        if (this.robot) {
-            this.scene.remove(this.robot);
-        }
-
         this.robot = new THREE.Group();
-
+    
+        // Body (cylinder) setup remains the same
         const bodyGeometry = new THREE.CylinderGeometry(
             this.options.robotRadius,
             this.options.robotRadius,
@@ -113,7 +110,8 @@ class Map3DViewer {
         body.position.y = this.options.robotHeight / 2;
         body.castShadow = true;
         this.robot.add(body);
-
+    
+        // Modified arrow setup
         const arrowGeometry = new THREE.ConeGeometry(
             this.options.robotRadius / 2,
             this.options.robotHeight / 2,
@@ -123,10 +121,12 @@ class Map3DViewer {
             color: 0xff0000
         });
         const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-        arrow.position.set(0, this.options.robotHeight / 2, -this.options.robotRadius);
-        arrow.rotation.x = Math.PI / 2;
+        
+        // Update arrow position and rotation
+        arrow.position.set(this.options.robotRadius, this.options.robotHeight / 2, 0);
+        arrow.rotation.z = -Math.PI / 2;  // Rotate to align with robot's forward direction
+        
         this.robot.add(arrow);
-
         this.scene.add(this.robot);
     }
 
@@ -271,11 +271,15 @@ class Map3DViewer {
                     pose.orientation.w
                 );
                 
-                const correctionQuaternion = new THREE.Quaternion();
-                correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
-                quaternion.multiply(correctionQuaternion);
-                
-                this.robot.setRotationFromQuaternion(quaternion);
+                // const correctionQuaternion = new THREE.Quaternion();
+                // correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI/2);
+                // correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI/2);
+
+                // quaternion.multiply(correctionQuaternion);
+                const euler = new THREE.Euler();
+                euler.setFromQuaternion(quaternion, 'YXZ');
+                this.robot.rotation.set(0, euler.z, 0);
+                // this.robot.setRotationFromQuaternion(quaternion);
             }
         });
     }
@@ -320,7 +324,10 @@ class Map3DViewer {
 
         const quaternion = new THREE.Quaternion();
         quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
-
+        // const euler = new THREE.Euler(0, -angle, 0);
+        // const quaternion = new THREE.Quaternion();
+        // quaternion.setFromEuler(euler);
+    
         this.updateVirtualGoal(this.selectedPosition, quaternion);
 
         return { position: this.selectedPosition, orientation: quaternion };

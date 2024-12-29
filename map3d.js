@@ -384,8 +384,8 @@ class Map3DViewer {
                         z: 0.0
                     },
                     orientation: {
-                        x: quaternion.x,
-                        y: quaternion.y,
+                        x: 0,
+                        y: 0,
                         z: quaternion.z,
                         w: quaternion.w
                     }

@@ -390,8 +390,7 @@ const app = new Vue({
             // Show success notification
             this.showNotification('Navigation goal sent to move_base', 'success');
             
-            // Reset the UI
-            this.cancelNavGoal();
+
         },
     
         cancelNavGoal() {

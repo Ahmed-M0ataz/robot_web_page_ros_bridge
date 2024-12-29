@@ -333,35 +333,29 @@ const app = new Vue({
         setupNavGoalListeners() {
             const mapElement = document.getElementById('map');
             mapElement.addEventListener('click', this.handleMapClick);
-            mapElement.addEventListener('mousemove', this.handleMapMouseMove);
         },
     
         removeNavGoalListeners() {
             const mapElement = document.getElementById('map');
             mapElement.removeEventListener('click', this.handleMapClick);
-            mapElement.removeEventListener('mousemove', this.handleMapMouseMove);
-            if (this.map3dViewer) {
-                this.map3dViewer.hideVirtualGoal();
-            }
-            this.showNavConfirm = false;
         },
-    
+
         handleMapClick(event) {
             if (!this.setNavGoalActive || !this.map3dViewer) return;
-    
-            const intersectPoint = this.map3dViewer.handleMapClick(event);
-            if (intersectPoint) {
-                // Store initial position
-                this.currentNavGoal = {
-                    position: {
-                        x: intersectPoint.x,
-                        y: intersectPoint.z
-                    },
-                    orientation: new THREE.Quaternion()
-                };
-                
-                // Show confirm buttons after position is selected
-                this.showNavConfirm = true;
+        
+            const result = this.map3dViewer.handleMapClick(event);
+            if (result) {
+                if (result.orientation) {
+                    // Second click completed with orientation
+                    this.currentNavGoal = {
+                        position: result.position,
+                        orientation: result.orientation
+                    };
+                    this.showNavConfirm = true;
+                } else {
+                    // First click - just position selected
+                    this.showNavConfirm = false;
+                }
             }
         },
     

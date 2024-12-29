@@ -24,8 +24,11 @@ class Map3DViewer {
         this.virtualGoal = null;
         this.navGoalMode = false;
         this.selectedPosition = null;
+        this.selectedPositionOrinataition = null;
         this.isPositionSelected = false;
         this.init();
+        this.selectionState = 'none'; // 'none', 'position_selected', 'orientation_selected'
+        this.firstClickPosition = null;
     }
 
     init() {
@@ -284,28 +287,80 @@ class Map3DViewer {
         });
     }
 
+
     handleMapClick(event) {
         if (!this.navGoalMode) return null;
-
+    
         const rect = this.renderer.domElement.getBoundingClientRect();
         const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
+    
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
-
+    
         const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         const intersectPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(plane, intersectPoint);
-
-        if (intersectPoint) {
-            this.selectedPosition = intersectPoint;
-            this.isPositionSelected = true;
-            return intersectPoint;
+    
+        if (!intersectPoint) return null;
+    
+        if (this.selectionState === 'none') {
+            // First click - store both x and z coordinates
+            this.selectedPosition = new THREE.Vector3(
+                intersectPoint.x,
+                0,
+                intersectPoint.z  // This is important! Store the Z coordinate
+            );
+            this.selectedPositionOrinataition = intersectPoint;
+            this.firstClickPosition = {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top
+            };
+            this.selectionState = 'position_selected';
+            
+            const initialQuaternion = new THREE.Quaternion();
+            this.updateVirtualGoal(this.selectedPosition, initialQuaternion);
+            
+            return { position: this.selectedPosition, orientation: null };
+        } 
+        else if (this.selectionState === 'position_selected') {
+            // Second click for orientation
+            const selectedPoint = this.selectedPosition.clone();
+            selectedPoint.project(this.camera);
+            
+            const screenX = (selectedPoint.x + 1) * rect.width / 2 + rect.left;
+            const screenY = (-selectedPoint.y + 1) * rect.height / 2 + rect.top;
+    
+            const currentMouseX = event.clientX - rect.left;
+            const currentMouseY = event.clientY - rect.top;
+    
+            const dx = currentMouseX - screenX;
+            const dy = currentMouseY - screenY;
+            const angle = Math.atan2(dy, dx);
+    
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
+    
+            this.updateVirtualGoal(this.selectedPosition, quaternion);
+            
+            this.selectionState = 'orientation_selected';
+            
+            return { 
+                position: {
+                    x: this.selectedPosition.x,
+                    y: this.selectedPosition.z,  // Use the z coordinate for ROS y
+                    z: 0
+                }, 
+                orientation: quaternion 
+            };
         }
-        return null;
     }
-
+    resetNavGoalSelection() {
+        this.selectionState = 'none';
+        this.selectedPosition = null;
+        this.firstClickPosition = null;
+        this.hideVirtualGoal();
+    }
     handleMouseMove(event) {
         if (!this.isPositionSelected || !this.selectedPosition) return;
 
@@ -323,7 +378,7 @@ class Map3DViewer {
         const angle = Math.atan2(dy, dx);
 
         const quaternion = new THREE.Quaternion();
-        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
+        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
         // const euler = new THREE.Euler(0, -angle, 0);
         // const quaternion = new THREE.Quaternion();
         // quaternion.setFromEuler(euler);
@@ -333,15 +388,16 @@ class Map3DViewer {
         return { position: this.selectedPosition, orientation: quaternion };
     }
 
-    updateVirtualGoal(position, orientation) {
+    updateVirtualGoal(position, quaternion) {
         if (!this.virtualGoal) {
             this.createVirtualGoal();
         }
 
         this.virtualGoal.position.copy(position);
-        this.virtualGoal.setRotationFromQuaternion(orientation);
+        this.virtualGoal.setRotationFromQuaternion(quaternion);
         this.virtualGoal.visible = true;
     }
+
 
     hideVirtualGoal() {
         if (this.virtualGoal) {
@@ -351,19 +407,16 @@ class Map3DViewer {
 
     enableNavGoalMode() {
         this.navGoalMode = true;
-        this.isPositionSelected = false;
-        this.selectedPosition = null;
+        this.resetNavGoalSelection();
         this.renderer.domElement.style.cursor = 'crosshair';
     }
 
     disableNavGoalMode() {
         this.navGoalMode = false;
-        this.isPositionSelected = false;
-        this.selectedPosition = null;
+        this.resetNavGoalSelection();
         this.renderer.domElement.style.cursor = 'default';
         this.hideVirtualGoal();
     }
-
     confirmNavGoal(position, quaternion) {
         if (!this.ros) return;
 
@@ -393,7 +446,7 @@ class Map3DViewer {
                     orientation: {
                         x: 0,
                         y: 0,
-                        z: quaternion.z,
+                        z: quaternion.y,
                         w: quaternion.w
                     }
                 }

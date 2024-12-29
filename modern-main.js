@@ -332,34 +332,59 @@ const app = new Vue({
     
         setupNavGoalListeners() {
             const mapElement = document.getElementById('map');
-            mapElement.addEventListener('click', this.handleMapClick);
+            mapElement.addEventListener('mousedown', this.handleMapMouseDown);
+            mapElement.addEventListener('mousemove', this.handleMapMouseMove);
+            mapElement.addEventListener('mouseup', this.handleMapMouseUp);
         },
     
         removeNavGoalListeners() {
             const mapElement = document.getElementById('map');
-            mapElement.removeEventListener('click', this.handleMapClick);
+            mapElement.removeEventListener('mousedown', this.handleMapMouseDown);
+            mapElement.removeEventListener('mousemove', this.handleMapMouseMove);
+            mapElement.removeEventListener('mouseup', this.handleMapMouseUp);
+            if (this.map3dViewer) {
+                this.map3dViewer.hideVirtualGoal();
+            }
+            this.showNavConfirm = false;
         },
-
-        handleMapClick(event) {
+        handleMapMouseDown(event) {
             if (!this.setNavGoalActive || !this.map3dViewer) return;
         
-            const result = this.map3dViewer.handleMapClick(event);
+            const result = this.map3dViewer.handleMapClick(event, true);
             if (result) {
-                if (result.orientation) {
-                    // Second click completed with orientation
-                    this.currentNavGoal = {
-                        position: result.position,
-                        orientation: result.orientation
-                    };
-                    this.showNavConfirm = true;
-                } else {
-                    // First click - just position selected
-                    this.showNavConfirm = false;
-                }
+                this.currentNavGoal = {
+                    position: result.position,
+                    orientation: result.orientation
+                };
             }
         },
+        handleMapMouseUp(event) {
+            if (!this.setNavGoalActive || !this.map3dViewer) return;
+            
+            if (this.currentNavGoal) {
+                this.showNavConfirm = true;
+                this.map3dViewer.isPositionSelected = false;
+            }
+        },
+        handleMapClick(event) {
+            if (!this.setNavGoalActive || !this.map3dViewer) return;
     
-        handleMapMouseMove(event) {
+            const intersectPoint = this.map3dViewer.handleMapClick(event);
+            if (intersectPoint) {
+                // Store initial position
+                this.currentNavGoal = {
+                    position: {
+                        x: intersectPoint.x,
+                        y: intersectPoint.z
+                    },
+                    orientation: new THREE.Quaternion()
+                };
+                
+                // Show confirm buttons after position is selected
+                this.showNavConfirm = true;
+            }
+
+
             if (!this.setNavGoalActive || !this.map3dViewer || !this.showNavConfirm) return;
     
             const result = this.map3dViewer.handleMouseMove(event);
@@ -368,6 +393,15 @@ const app = new Vue({
             }
         },
     
+        handleMapMouseMove(event) {
+            if (!this.setNavGoalActive || !this.map3dViewer || !this.map3dViewer.isPositionSelected) return;
+        
+            const result = this.map3dViewer.handleMouseMove(event);
+            if (result) {
+                this.currentNavGoal.orientation = result.orientation;
+            }
+        },
+        
         confirmNavGoal() {
             if (!this.currentNavGoal || !this.map3dViewer) return;
     

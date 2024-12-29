@@ -24,11 +24,8 @@ class Map3DViewer {
         this.virtualGoal = null;
         this.navGoalMode = false;
         this.selectedPosition = null;
-        this.selectedPositionOrinataition = null;
         this.isPositionSelected = false;
         this.init();
-        this.selectionState = 'none'; // 'none', 'position_selected', 'orientation_selected'
-        this.firstClickPosition = null;
     }
 
     init() {
@@ -274,21 +271,15 @@ class Map3DViewer {
                     pose.orientation.w
                 );
                 
-                // const correctionQuaternion = new THREE.Quaternion();
-                // correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI/2);
-                // correctionQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI/2);
-
-                // quaternion.multiply(correctionQuaternion);
                 const euler = new THREE.Euler();
                 euler.setFromQuaternion(quaternion, 'YXZ');
                 this.robot.rotation.set(0, euler.z, 0);
-                // this.robot.setRotationFromQuaternion(quaternion);
+
             }
         });
     }
 
-
-    handleMapClick(event) {
+    handleMapClick(event, isMouseDown = true) {
         if (!this.navGoalMode) return null;
     
         const rect = this.renderer.domElement.getBoundingClientRect();
@@ -302,102 +293,81 @@ class Map3DViewer {
         const intersectPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(plane, intersectPoint);
     
-        if (!intersectPoint) return null;
-    
-        if (this.selectionState === 'none') {
-            // First click - store both x and z coordinates
+        if (intersectPoint) {
             this.selectedPosition = new THREE.Vector3(
                 intersectPoint.x,
                 0,
                 intersectPoint.z  // This is important! Store the Z coordinate
             );
-            this.selectedPositionOrinataition = intersectPoint;
-            this.firstClickPosition = {
-                x: event.clientX - rect.left,
-                y: event.clientY - rect.top
-            };
-            this.selectionState = 'position_selected';
+            this.isPositionSelected = isMouseDown;
             
-            const initialQuaternion = new THREE.Quaternion();
-            this.updateVirtualGoal(this.selectedPosition, initialQuaternion);
+            // Create initial orientation based on camera view
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            cameraDirection.y = 0; // Ensure direction is parallel to ground
+            cameraDirection.normalize();
             
-            return { position: this.selectedPosition, orientation: null };
-        } 
-        else if (this.selectionState === 'position_selected') {
-            // Second click for orientation
-            const selectedPoint = this.selectedPosition.clone();
-            selectedPoint.project(this.camera);
-            
-            const screenX = (selectedPoint.x + 1) * rect.width / 2 + rect.left;
-            const screenY = (-selectedPoint.y + 1) * rect.height / 2 + rect.top;
-    
-            const currentMouseX = event.clientX - rect.left;
-            const currentMouseY = event.clientY - rect.top;
-    
-            const dx = currentMouseX - screenX;
-            const dy = currentMouseY - screenY;
-            const angle = Math.atan2(dy, dx);
-    
             const quaternion = new THREE.Quaternion();
-            quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
-    
-            this.updateVirtualGoal(this.selectedPosition, quaternion);
+            quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), cameraDirection);
             
-            this.selectionState = 'orientation_selected';
+            // Show virtual goal immediately with initial orientation
+            this.updateVirtualGoal(intersectPoint, quaternion);
             
-            return { 
+            return {
                 position: {
                     x: this.selectedPosition.x,
                     y: this.selectedPosition.z,  // Use the z coordinate for ROS y
                     z: 0
                 }, 
-                orientation: quaternion 
+                orientation: quaternion
+            };
+        }
+        return null;
+    }
+
+    handleMouseMove(event) {
+        if (!this.isPositionSelected || !this.selectedPosition) return;
+    
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
+    
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const currentPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, currentPoint);
+    
+        if (currentPoint) {
+            // Calculate direction vector from selected position to current mouse position
+            const direction = new THREE.Vector3()
+                .subVectors(currentPoint, this.selectedPosition)
+                .normalize();
+            direction.y = 0; // Ensure direction is parallel to ground
+    
+            // Create quaternion from direction
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
+    
+            // Update virtual goal with new orientation
+            this.updateVirtualGoal(this.selectedPosition, quaternion);
+    
+            return {
+                position: this.selectedPosition,
+                orientation: quaternion
             };
         }
     }
-    resetNavGoalSelection() {
-        this.selectionState = 'none';
-        this.selectedPosition = null;
-        this.firstClickPosition = null;
-        this.hideVirtualGoal();
-    }
-    handleMouseMove(event) {
-        if (!this.isPositionSelected || !this.selectedPosition) return;
-
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        const selectedPoint = this.selectedPosition.clone();
-        selectedPoint.project(this.camera);
-        const screenX = (selectedPoint.x + 1) * rect.width / 2 + rect.left;
-        const screenY = (-selectedPoint.y + 1) * rect.height / 2 + rect.top;
-
-        const dx = mouseX - screenX;
-        const dy = mouseY - screenY;
-        const angle = Math.atan2(dy, dx);
-
-        const quaternion = new THREE.Quaternion();
-        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-        // const euler = new THREE.Euler(0, -angle, 0);
-        // const quaternion = new THREE.Quaternion();
-        // quaternion.setFromEuler(euler);
-    
-        this.updateVirtualGoal(this.selectedPosition, quaternion);
-
-        return { position: this.selectedPosition, orientation: quaternion };
-    }
-
-    updateVirtualGoal(position, quaternion) {
+    updateVirtualGoal(position, orientation) {
         if (!this.virtualGoal) {
             this.createVirtualGoal();
         }
 
         this.virtualGoal.position.copy(position);
-        this.virtualGoal.setRotationFromQuaternion(quaternion);
+        this.virtualGoal.setRotationFromQuaternion(orientation);
         this.virtualGoal.visible = true;
     }
-
 
     hideVirtualGoal() {
         if (this.virtualGoal) {
@@ -407,16 +377,27 @@ class Map3DViewer {
 
     enableNavGoalMode() {
         this.navGoalMode = true;
-        this.resetNavGoalSelection();
+        this.isPositionSelected = false;
+        this.selectedPosition = null;
         this.renderer.domElement.style.cursor = 'crosshair';
+        // Disable orbit controls when entering nav goal mode
+        if (this.controls) {
+            this.controls.enabled = false;
+        }
     }
-
+    
     disableNavGoalMode() {
         this.navGoalMode = false;
-        this.resetNavGoalSelection();
+        this.isPositionSelected = false;
+        this.selectedPosition = null;
         this.renderer.domElement.style.cursor = 'default';
         this.hideVirtualGoal();
+        // Re-enable orbit controls when exiting nav goal mode
+        if (this.controls) {
+            this.controls.enabled = true;
+        }
     }
+
     confirmNavGoal(position, quaternion) {
         if (!this.ros) return;
 

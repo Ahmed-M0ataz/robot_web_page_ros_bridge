@@ -25,6 +25,9 @@ class Map3DViewer {
         this.navGoalMode = false;
         this.selectedPosition = null;
         this.isPositionSelected = false;
+        this.currentMode = 'nav'; // Can be 'nav' or 'initial'
+        this.arrowColorNav = 0x00ff00;     // Green for navigation
+        this.arrowColorInitial = 0xff0000;  // Red for initial pose
         this.init();
     }
 
@@ -136,7 +139,7 @@ class Map3DViewer {
         // Create a longer, more visible arrow
         const arrowLength = 1.0;
         const arrowWidth = 0.3;
-        const arrowColor = 0x00ff00;
+        let arrowColor = this.currentMode === 'nav' ? this.arrowColorNav : this.arrowColorInitial;
         
         // Arrow shaft
         const shaftGeometry = new THREE.BoxGeometry(arrowLength, 0.1, arrowWidth);
@@ -297,7 +300,7 @@ class Map3DViewer {
             this.selectedPosition = new THREE.Vector3(
                 intersectPoint.x,
                 0,
-                intersectPoint.z  // This is important! Store the Z coordinate
+                intersectPoint.z
             );
             this.isPositionSelected = isMouseDown;
             
@@ -316,7 +319,7 @@ class Map3DViewer {
             return {
                 position: {
                     x: this.selectedPosition.x,
-                    y: this.selectedPosition.z,  // Use the z coordinate for ROS y
+                    y: this.selectedPosition.z,
                     z: 0
                 }, 
                 orientation: quaternion
@@ -358,6 +361,94 @@ class Map3DViewer {
                 orientation: quaternion
             };
         }
+    }    handleMapClick(event, isMouseDown = true) {
+        if (!this.navGoalMode) return null;
+    
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
+    
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+    
+        if (intersectPoint) {
+            this.selectedPosition = new THREE.Vector3(
+                intersectPoint.x,
+                0,
+                intersectPoint.z
+            );
+            this.isPositionSelected = isMouseDown;
+            
+            // Create initial orientation based on camera view
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            cameraDirection.y = 0; // Ensure direction is parallel to ground
+            cameraDirection.normalize();
+            
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), cameraDirection);
+            
+            // Show virtual goal immediately with initial orientation
+            this.updateVirtualGoal(intersectPoint, quaternion);
+            
+            return {
+                position: {
+                    x: this.selectedPosition.x,
+                    y: this.selectedPosition.z,
+                    z: 0
+                }, 
+                orientation: quaternion
+            };
+        }
+        return null;
+    }    handleMapClick(event, isMouseDown = true) {
+        if (!this.navGoalMode) return null;
+    
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
+    
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+    
+        if (intersectPoint) {
+            this.selectedPosition = new THREE.Vector3(
+                intersectPoint.x,
+                0,
+                intersectPoint.z
+            );
+            this.isPositionSelected = isMouseDown;
+            
+            // Create initial orientation based on camera view
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            cameraDirection.y = 0; // Ensure direction is parallel to ground
+            cameraDirection.normalize();
+            
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), cameraDirection);
+            
+            // Show virtual goal immediately with initial orientation
+            this.updateVirtualGoal(intersectPoint, quaternion);
+            
+            return {
+                position: {
+                    x: this.selectedPosition.x,
+                    y: this.selectedPosition.z,
+                    z: 0
+                }, 
+                orientation: quaternion
+            };
+        }
+        return null;
     }
     updateVirtualGoal(position, orientation) {
         if (!this.virtualGoal) {
@@ -375,11 +466,22 @@ class Map3DViewer {
         }
     }
 
-    enableNavGoalMode() {
+    enableNavGoalMode(mode = 'nav') {
         this.navGoalMode = true;
+        this.currentMode = mode;
         this.isPositionSelected = false;
         this.selectedPosition = null;
         this.renderer.domElement.style.cursor = 'crosshair';
+        
+        // Set the appropriate color for the virtual goal arrow
+        if (this.virtualGoal) {
+            const arrowColor = mode === 'nav' ? this.arrowColorNav : this.arrowColorInitial;
+            // Update all children materials
+            this.virtualGoal.children.forEach(child => {
+                child.material.color.setHex(arrowColor);
+            });
+        }
+        
         // Disable orbit controls when entering nav goal mode
         if (this.controls) {
             this.controls.enabled = false;
@@ -396,6 +498,59 @@ class Map3DViewer {
         if (this.controls) {
             this.controls.enabled = true;
         }
+    }
+    confirmInitialPose(position, quaternion) {
+        if (!this.ros) return;
+
+        // Create a topic for initial pose
+        const initialPoseTopic = new ROSLIB.Topic({
+            ros: this.ros,
+            name: '/initialpose',
+            messageType: 'geometry_msgs/PoseWithCovarianceStamped'
+        });
+
+        // Create the initial pose message
+        const initialPoseMsg = new ROSLIB.Message({
+            header: {
+                frame_id: 'map',
+                stamp: {
+                    secs: Math.floor(Date.now() / 1000),
+                    nsecs: (Date.now() % 1000) * 1000000
+                }
+            },
+            pose: {
+                pose: {
+                    position: {
+                        x: position.x,
+                        y: -position.z,  // Convert from Three.js Z to ROS Y
+                        z: 0.0
+                    },
+                    orientation: {
+                        x: 0,
+                        y: 0,
+                        z: quaternion.y,
+                        w: quaternion.w
+                    }
+                },
+                // Initialize covariance matrix with zeros
+                covariance: [
+                    0.25, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.25, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.06853892326654787
+                ]
+
+            }
+        });
+
+        // Publish the initial pose
+        initialPoseTopic.publish(initialPoseMsg);
+        
+        // Hide the virtual goal after setting initial pose
+        this.hideVirtualGoal();
+        console.log('Initial pose published:', initialPoseMsg);
     }
 
     confirmNavGoal(position, quaternion) {
@@ -427,6 +582,7 @@ class Map3DViewer {
                     orientation: {
                         x: 0,
                         y: 0,
+                        // y in three.js is z
                         z: quaternion.y,
                         w: quaternion.w
                     }

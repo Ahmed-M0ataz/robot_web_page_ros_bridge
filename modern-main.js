@@ -6,7 +6,7 @@ const app = new Vue({
         rosbridge_address: 'ws://0.0.0.0:9090',
         connected: false,
         map3dViewer: null,
-        
+
         // UI State
         activeTab: 'Mapping',
         tabs: ['Mapping', 'Control', 'Settings'],
@@ -49,10 +49,96 @@ const app = new Vue({
         },
         setNavGoalActive: false,
         showNavConfirm: false,
-        currentNavGoal: null
+        currentNavGoal: null,
+        setInitialPoseActive: false,
+        showInitialPoseConfirm: false,
+        currentInitialPose: null
     },
     
     methods: {
+        toggleSetInitialPose() {
+            if (this.setNavGoalActive) {
+                this.setNavGoalActive = false;
+                this.removeNavGoalListeners();
+            }
+            this.setInitialPoseActive = !this.setInitialPoseActive;
+            if (this.map3dViewer) {
+                if (this.setInitialPoseActive) {
+                    this.map3dViewer.enableNavGoalMode('initial');
+                    this.setupInitialPoseListeners();
+                } else {
+                    this.map3dViewer.disableNavGoalMode();
+                    this.removeInitialPoseListeners();
+                }
+            }
+        },
+
+        setupInitialPoseListeners() {
+            const mapElement = document.getElementById('map');
+            mapElement.addEventListener('mousedown', this.handleInitialPoseMouseDown);
+            mapElement.addEventListener('mousemove', this.handleInitialPoseMouseMove);
+            mapElement.addEventListener('mouseup', this.handleInitialPoseMouseUp);
+        },
+
+        removeInitialPoseListeners() {
+            const mapElement = document.getElementById('map');
+            mapElement.removeEventListener('mousedown', this.handleInitialPoseMouseDown);
+            mapElement.removeEventListener('mousemove', this.handleInitialPoseMouseMove);
+            mapElement.removeEventListener('mouseup', this.handleInitialPoseMouseUp);
+            if (this.map3dViewer) {
+                this.map3dViewer.hideVirtualGoal();
+            }
+            this.showInitialPoseConfirm = false;
+        },
+
+        handleInitialPoseMouseDown(event) {
+            if (!this.setInitialPoseActive || !this.map3dViewer) return;
+            
+            const result = this.map3dViewer.handleMapClick(event, true);
+            if (result) {
+                this.currentInitialPose = {
+                    position: result.position,
+                    orientation: result.orientation
+                };
+            }
+        },
+        
+        handleInitialPoseMouseUp(event) {
+            if (!this.setInitialPoseActive || !this.map3dViewer) return;
+            
+            if (this.currentInitialPose) {
+                this.showInitialPoseConfirm = true;
+                this.map3dViewer.isPositionSelected = false;
+            }
+        },
+  
+        handleInitialPoseMouseMove(event) {
+            if (!this.setInitialPoseActive || !this.map3dViewer || !this.map3dViewer.isPositionSelected) return;
+            
+            const result = this.map3dViewer.handleMouseMove(event);
+            if (result) {
+                this.currentInitialPose.orientation = result.orientation;
+            }
+        },
+
+        confirmInitialPose() {
+            if (!this.currentInitialPose || !this.map3dViewer) return;
+            
+            const position = new THREE.Vector3(
+                this.currentInitialPose.position.x,
+                0,
+                this.currentInitialPose.position.y
+            );
+            
+            this.map3dViewer.confirmInitialPose(position, this.currentInitialPose.orientation);
+            this.showNotification('Initial pose set', 'success');
+            this.currentInitialPose = null;
+            this.showInitialPoseConfirm = false;
+            this.setInitialPoseActive = false;
+            this.map3dViewer.disableNavGoalMode();
+            this.removeInitialPoseListeners();
+        },
+
         setActiveTab(tab) {
             this.activeTab = tab;
             if (tab === 'Mapping') {
@@ -318,10 +404,14 @@ const app = new Vue({
         },
 
         toggleSetNavGoal() {
+            if (this.setInitialPoseActive) {
+                this.setInitialPoseActive = false;
+                this.removeInitialPoseListeners();
+            }
             this.setNavGoalActive = !this.setNavGoalActive;
             if (this.map3dViewer) {
                 if (this.setNavGoalActive) {
-                    this.map3dViewer.enableNavGoalMode();
+                    this.map3dViewer.enableNavGoalMode('nav');
                     this.setupNavGoalListeners();
                 } else {
                     this.map3dViewer.disableNavGoalMode();
@@ -379,6 +469,7 @@ const app = new Vue({
         
         confirmNavGoal() {
             if (!this.currentNavGoal || !this.map3dViewer) return;
+            
             const position = new THREE.Vector3(
                 this.currentNavGoal.position.x,
                 0,
@@ -386,6 +477,11 @@ const app = new Vue({
             );
             this.map3dViewer.confirmNavGoal(position, this.currentNavGoal.orientation);
             this.showNotification('Navigation goal sent to move_base', 'success');
+            this.currentNavGoal = null;
+            this.showNavConfirm = false;
+            this.setNavGoalActive = false;
+            this.map3dViewer.disableNavGoalMode();
+            this.removeNavGoalListeners();
         },
     
         cancelNavGoal() {
@@ -393,15 +489,19 @@ const app = new Vue({
                 this.map3dViewer.cancelCurrentGoal();
             }
             this.currentNavGoal = null;
+            this.currentInitialPose = null;
             this.showNavConfirm = false;
+            this.showInitialPoseConfirm = false;
             this.setNavGoalActive = false;
+            this.setInitialPoseActive = false;
             if (this.map3dViewer) {
                 this.map3dViewer.hideVirtualGoal();
                 this.map3dViewer.disableNavGoalMode();
             }
             this.removeNavGoalListeners();
-            this.showNotification('Navigation goal cancelled', 'info');
-        }
+            this.removeInitialPoseListeners();
+            this.showNotification('Goal cancelled', 'info');
+        },
     },
 
     mounted() {

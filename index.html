@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- 3D and ROS Dependencies -->
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/eventemitter2/6.4.9/eventemitter2.min.js"></script> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/createjs/1.0.1/createjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -43,14 +42,21 @@
             <button @click="startMapping" class="control-btn">
                 <i class="fas fa-play"></i> Start Mapping
             </button>
+            
+            <!-- Navigation and Initial Pose Controls -->
             <div class="nav-controls">
                 <button @click="toggleSetNavGoal" :class="['control-btn', setNavGoalActive ? 'active' : '']">
                     <i class="fas fa-location-crosshairs"></i> Set Navigation Goal
+                </button>
+                <button @click="toggleSetInitialPose" :class="['control-btn', setInitialPoseActive ? 'active' : '']">
+                    <i class="fas fa-map-pin"></i> Set Initial Pose
                 </button>
             </div>
             
             <div class="map-container">
                 <div id="map" class="map-canvas"></div>
+                
+                <!-- Navigation Goal Confirmation -->
                 <div v-if="showNavConfirm" class="nav-confirm-controls">
                     <button @click="confirmNavGoal" class="control-btn success">
                         <i class="fas fa-check"></i> Send Goal
@@ -59,7 +65,18 @@
                         <i class="fas fa-times"></i> Cancel
                     </button>
                 </div>
+                
+                <!-- Initial Pose Confirmation -->
+                <div v-if="showInitialPoseConfirm" class="nav-confirm-controls">
+                    <button @click="confirmInitialPose" class="control-btn success">
+                        <i class="fas fa-check"></i> Set Initial Pose
+                    </button>
+                    <button @click="cancelNavGoal" class="control-btn danger">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
+            
             <div class="map-controls">
                 <button @click="resetView" class="control-btn secondary">
                     <i class="fas fa-redo"></i> Reset View
